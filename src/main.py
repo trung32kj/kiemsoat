@@ -17,12 +17,15 @@ import commands
 import config
 import telegram
 import tracker
+import updater
 import wininfo
 
 APP_NAME = "TeleMonitor"
+VERSION = "1.0.0"
 MUTEX_NAME = "Local\\TeleMonitorMutex"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
+UPDATE_DIR = LOG_DIR / "update"
 ERROR_ALREADY_EXISTS = 183
 
 log = logging.getLogger(APP_NAME)
@@ -176,15 +179,51 @@ def run() -> None:
     if cfg["enable_commands"]:
         commands.CommandListener(cfg, sender, commands.LiveSession()).start()
         log.info("command listener enabled (/shot, /live, /stop, /status)")
+    if cfg["update_repo"]:
+        def on_update_error(reason: str) -> None:
+            sender.put(
+                "text",
+                f"❌ [{telegram.escape(cfg['device_name'])}] "
+                f"Cập nhật thất bại: {telegram.escape(reason)[:300]}",
+            )
+
+        updater.start_watcher(cfg, VERSION, UPDATE_DIR, on_update_error)
+        log.info("update watcher enabled for %s (v%s)", cfg["update_repo"], VERSION)
     if cfg["send_startup_message"]:
         stamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         sender.put(
             "text",
             f"🟢 <b>Máy tính đã bật</b>\n"
             f"🖥️ <b>{telegram.escape(cfg['device_name'])}</b>\n"
-            f"🕒 {stamp}",
+            f"🕒 {stamp}\n"
+            f"🔖 v{telegram.escape(VERSION)}",
         )
     poll_forever(cfg, sender)
+
+
+def do_update() -> int:
+    cfg = config.load()
+    repo = cfg.get("update_repo", "")
+    if not repo:
+        say("update_repo rỗng trong config.json — không có nguồn cập nhật.", error=True, box=True)
+        return 1
+    try:
+        info = updater.check(repo, VERSION)
+    except updater.UpdateError as exc:
+        say(f"Kiểm tra thất bại: {exc}", error=True, box=True)
+        return 1
+    if not info:
+        say(f"Đang là bản mới nhất (v{VERSION}).", box=True)
+        return 0
+    try:
+        dest = UPDATE_DIR / (updater.APP_EXE_NAME + ".new")
+        updater.download(info["url"], info["sha256_url"], dest)
+        say(f"Đã tải và xác minh {info['version']}. Đang cài...", box=True)
+        updater.apply(dest)
+    except updater.UpdateError as exc:
+        say(f"Cập nhật thất bại: {exc}", error=True, box=True)
+        return 1
+    return 0
 
 
 def test_send() -> int:
@@ -208,6 +247,7 @@ def test_send() -> int:
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     setup_logging()
+    updater.cleanup_old()
     if "--install" in args:
         install_autostart()
         return 0
@@ -216,6 +256,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if "--test" in args:
         return test_send()
+    if "--update" in args:
+        return do_update()
+    if "--version" in args:
+        say(f"{APP_NAME} v{VERSION}")
+        return 0
     if not acquire_single_instance():
         log.info("another instance is already running, exiting")
         return 0

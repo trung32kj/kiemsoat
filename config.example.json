@@ -9,6 +9,8 @@
   "sensitive_cooldown": 300,
   "enable_commands": true,
   "command_poll_timeout": 25,
+  "update_repo": "your-github-user/telemonitor",
+  "update_check_interval": 21600,
   "ignore_apps": [
     "LockApp.exe",
     "SearchHost.exe",

@@ -15,6 +15,40 @@ gửi thông báo qua Telegram Bot:
 Nhiều máy dùng chung 1 bot: mỗi máy 1 `config.json` với `device_name` riêng,
 mọi tin nhắn có tiền tố `[TênMáy]`.
 
+4. Tự động cập nhật: kiểm tra GitHub Releases, tải bản mới, xác minh SHA-256,
+   thay exe đang chạy và khởi động lại (xem mục "Tự động cập nhật").
+
+## Tự động cập nhật
+
+Cơ chế: **self-replace**. Windows không cho ghi đè file exe đang chạy, nên app
+đổi tên exe hiện tại thành `.old`, chép exe mới vào đúng tên cũ, chạy lại nó,
+rồi thoát. Exe mới xoá file `.old` lúc khởi động.
+
+Module `src/updater.py`:
+
+| Hàm | Việc |
+|---|---|
+| `parse_version(s) -> tuple[int, ...]` | `"v1.2.3"` → `(1,2,3)`; so sánh được, không dùng packaging |
+| `check(repo, timeout) -> dict \| None` | Gọi `api.github.com/repos/<repo>/releases/latest`; trả `{version, url, sha256, size}`; `None` nếu không có bản mới hoặc bị tắt |
+| `download(url, dest, expected_sha, timeout) -> None` | Tải về `%LOCALAPPDATA%\TeleMonitor\update\telemonitor.new.exe`, tính SHA-256, so khớp, ném `UpdateError` nếu lệch |
+| `apply(new_exe) -> None` | `os.replace` exe hiện tại → `.old`, chép `new_exe` → vị trí cũ, `subprocess.Popen([exe])`, `os._exit(0)` |
+| `cleanup_old()` | Xoá `telemonitor.exe.old` nếu còn (gọi lúc khởi động) |
+
+Nguồn version và hash: release tag `v1.2.3` + asset `telemonitor.exe` + file
+`telemonitor.exe.sha256` trong cùng release. Không có file `.sha256` → bỏ qua
+bản đó, ghi log, không cài (fail closed).
+
+Chu kỳ: kiểm tra lúc khởi động (sau 30 giây để không chậm startup) và mỗi
+`update_check_interval` giây (mặc định 6 giờ). Chỉ chạy khi `update_repo` khác rỗng.
+
+Bảo mật: chỉ tải qua HTTPS từ `api.github.com` và `objects.githubusercontent.com`;
+SHA-256 bắt buộc; nếu hash lệch thì xoá file tải về và ghi log ERROR.
+
+Thông báo Telegram: `⬆️ [Máy] Đã cập nhật lên v1.2.3` sau khi khởi động lại,
+hoặc `❌ Cập nhật thất bại: <lý do>`.
+
+CLI: `--update` kiểm tra và cài ngay (dùng để test thủ công).
+
 ## Kiến trúc
 
 Một process, một vòng poll, một worker thread gửi tin. Không GUI, không server.

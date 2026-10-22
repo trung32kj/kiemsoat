@@ -83,6 +83,37 @@ Sửa danh sách cố định thì phải chạy lại `build.bat`.
 
 
 
+## Tự động cập nhật
+
+App kiểm tra GitHub Releases lúc khởi động (sau 30 giây) và mỗi 6 giờ. Có bản mới thì
+tự tải, xác minh SHA-256, thay file exe đang chạy và khởi động lại — không hỏi gì.
+
+Bật bằng cách điền `update_repo` trong `config.json`:
+
+```json
+"update_repo": "your-github-user/telemonitor"
+```
+
+Để trống = tắt cập nhật.
+
+### Phát hành bản mới
+
+1. Sửa `VERSION` trong [src/main.py](src/main.py) (vd `1.1.0`), chạy `build.bat`.
+2. Tính hash và tạo release:
+
+```bat
+certutil -hashfile dist\telemonitor.exe SHA256 > dist\telemonitor.exe.sha256
+```
+
+3. Lên GitHub → Releases → Draft a new release:
+   - Tag: `v1.1.0` (phải khớp `VERSION`, có tiền tố `v`)
+   - Đính 2 file: `telemonitor.exe` và `telemonitor.exe.sha256`
+   - Publish.
+
+Thiếu 1 trong 2 file thì app bỏ qua bản đó và ghi log lỗi — không cài file chưa xác minh.
+
+Kiểm tra thủ công: `%LOCALAPPDATA%\TeleMonitor\telemonitor.exe --update`
+
 ## Cấu hình
 
 | Key | Ý nghĩa |
@@ -97,6 +128,8 @@ Sửa danh sách cố định thì phải chạy lại `build.bat`.
 | `sensitive_cooldown` | Giây tối thiểu giữa 2 ảnh (tối thiểu 30) |
 | `enable_commands` | Bật nhận lệnh `/shot`, `/live`, `/stop`, `/status` |
 | `command_poll_timeout` | Giây long-poll getUpdates (5–50) |
+| `update_repo` | `user/repo` GitHub để tự cập nhật (rỗng = tắt) |
+| `update_check_interval` | Giây giữa 2 lần kiểm tra bản mới (tối thiểu 600) |
 | `ignore_apps` | Tên exe bỏ qua |
 
 ## Log

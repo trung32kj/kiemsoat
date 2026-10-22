@@ -17,6 +17,8 @@ DEFAULTS = {
     "sensitive_cooldown": 300,
     "enable_commands": True,
     "command_poll_timeout": 25,
+    "update_repo": "",
+    "update_check_interval": 21600,
     "ignore_apps": [
         "LockApp.exe",
         "SearchHost.exe",
@@ -73,6 +75,13 @@ def _normalize(cfg: dict) -> dict:
         )
     except (TypeError, ValueError):
         cfg["command_poll_timeout"] = 25
+    cfg["update_repo"] = str(cfg.get("update_repo") or "").strip().strip("/")
+    try:
+        cfg["update_check_interval"] = max(
+            600, int(cfg.get("update_check_interval") or 21600)
+        )
+    except (TypeError, ValueError):
+        cfg["update_check_interval"] = 21600
     if not isinstance(cfg.get("sensitive_keywords"), list):
         cfg["sensitive_keywords"] = []
     if not isinstance(cfg.get("ignore_apps"), list):

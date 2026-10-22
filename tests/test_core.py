@@ -182,6 +182,69 @@ def test_live_session_stop_is_immediate():
     assert len(frames) <= 2, f"sau /stop không được chụp tiếp, được {len(frames)}"
 
 
+def test_updater_parse_version():
+    from updater import parse_version
+    assert parse_version("v1.2.3") == (1, 2, 3)
+    assert parse_version("1.2.3") == (1, 2, 3)
+    assert parse_version("v2.0") == (2, 0)
+    assert parse_version("") == (0,)
+    assert parse_version("v1.2.3") > parse_version("v1.2.2")
+    assert parse_version("v1.10.0") > parse_version("v1.9.9"), "so sánh số học, không phải chuỗi"
+    assert parse_version("v1.2.3") > parse_version("v1.2")
+    assert parse_version("junk") == (0,)
+
+
+def test_updater_download_rejects_bad_hash():
+    import hashlib
+    import http.server
+    import threading
+    from pathlib import Path
+    from updater import UpdateError, download
+
+    payload = b"fake exe bytes"
+    good = hashlib.sha256(payload).hexdigest()
+    bad = "0" * 64
+    state = {"sha": bad}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = state["sha"].encode() if self.path.endswith(".sha256") else payload
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_port}"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "telemonitor.new.exe"
+            try:
+                download(base + "/telemonitor.exe", base + "/telemonitor.exe.sha256", dest)
+                raise AssertionError("hash sai phải ném UpdateError")
+            except UpdateError as exc:
+                assert "SHA-256" in str(exc)
+            assert not dest.exists(), "file hỏng phải bị xoá"
+            assert not dest.with_suffix(".exe.part").exists(), "file tạm phải bị xoá"
+
+            state["sha"] = good
+            digest = download(base + "/telemonitor.exe", base + "/telemonitor.exe.sha256", dest)
+            assert digest == good
+            assert dest.read_bytes() == payload
+    finally:
+        srv.shutdown()
+
+
+def test_updater_check_returns_none_without_repo():
+    from updater import check
+    assert check("", "1.0.0") is None
+    assert check("   ", "1.0.0") is None
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
