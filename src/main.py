@@ -6,6 +6,8 @@ import logging
 import logging.handlers
 import os
 import queue
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -55,6 +57,69 @@ def say(msg: str, error: bool = False, box: bool = False) -> None:
     (log.error if error else log.info)("%s", msg)
     if box and getattr(sys, "frozen", False) and not os.environ.get("TELEMONITOR_NOBOX"):
         ctypes.windll.user32.MessageBoxW(None, msg, APP_NAME, 0x10 if error else 0x40)
+
+
+def is_installed() -> bool:
+    """True when this exe already lives in the install folder."""
+    if not getattr(sys, "frozen", False):
+        return True
+    return Path(sys.executable).parent == LOG_DIR
+
+
+def self_install() -> int:
+    """Copy this exe into %LOCALAPPDATA%\\TeleMonitor, enable autostart, launch it.
+
+    Runs when the user double-clicks the downloaded exe. The running copy cannot
+    be moved while executing, so it copies itself, registers the installed copy,
+    starts it, and exits. A MessageBox explains each outcome because there is no
+    console.
+    """
+    target_dir = LOG_DIR
+    target = target_dir / "telemonitor.exe"
+    source = Path(sys.executable)
+
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        say(f"Không tạo được thư mục {target_dir}:\n{exc}", error=True, box=True)
+        return 1
+
+    # Carry the user's config along when one sits next to the downloaded exe.
+    src_cfg = source.parent / "config.json"
+    dst_cfg = target_dir / "config.json"
+    if src_cfg.exists() and src_cfg != dst_cfg:
+        try:
+            shutil.copy2(src_cfg, dst_cfg)
+        except OSError as exc:
+            log.warning("không copy được config.json: %s", exc)
+
+    if source.resolve() != target.resolve():
+        try:
+            shutil.copy2(source, target)
+        except OSError as exc:
+            say(f"Không copy được file exe:\n{exc}", error=True, box=True)
+            return 1
+
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE
+        ) as key:
+            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, f'"{target}"')
+    except OSError as exc:
+        say(f"Không bật được tự khởi động:\n{exc}", error=True, box=True)
+        return 1
+
+    subprocess.Popen([str(target)], close_fds=True)
+    msg = (
+        f"Đã cài TeleMonitor.\n\n"
+        f"Thư mục: {target_dir}\n"
+        f"Tự khởi động: đã bật\n\n"
+        f"Nếu chưa điền bot_token / chat_id, mở config.json trong thư mục trên."
+    )
+    say(msg, box=True)
+    return 0
 
 
 def acquire_single_instance() -> bool:
@@ -172,6 +237,12 @@ def run() -> None:
     cfg = config.load()
     if not cfg["bot_token"] or not cfg["chat_id"]:
         log.error("Thiếu bot_token/chat_id trong %s", config.config_path())
+        say(
+            f"Thiếu bot_token / chat_id.\n\nMở file này và điền:\n"
+            f"{config.config_path()}\n\nSau đó chạy lại telemonitor.exe.",
+            error=True,
+            box=True,
+        )
         return
     log.info("start device=%s interval=%s", cfg["device_name"], cfg["poll_interval"])
     sender = Sender(cfg)
@@ -261,6 +332,8 @@ def main(argv: list[str] | None = None) -> int:
     if "--version" in args:
         say(f"{APP_NAME} v{VERSION}")
         return 0
+    if "--install" not in args and "--uninstall" not in args and not is_installed():
+        return self_install()
     if not acquire_single_instance():
         log.info("another instance is already running, exiting")
         return 0

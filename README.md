@@ -46,10 +46,18 @@ build.bat
 
 ### 3. Cài
 
-Sửa `config.example.json` → đổi tên thành `config.json` → điền `bot_token`, `chat_id`,
-`device_name`. Rồi chạy `install.bat` (không cần quyền Admin).
+**Cách nhanh nhất:** bấm đúp `telemonitor.exe`. Nó tự copy vào
+`%LOCALAPPDATA%\TeleMonitor`, bật tự khởi động, chạy nền và hiện hộp thoại xác nhận.
+Nếu `config.json` nằm cạnh file exe tải về, nó được copy theo.
+
+**Hoặc chạy `install.bat`** — làm đúng việc trên nhưng cho cả thư mục project.
+
+Sau khi cài, sửa `%LOCALAPPDATA%\TeleMonitor\config.json` nếu cần (điền `bot_token`,
+`chat_id`, `device_name`), rồi khởi động lại app.
 
 Kiểm tra cấu hình: `%LOCALAPPDATA%\TeleMonitor\telemonitor.exe --test`
+
+Bấm exe lần nữa khi đã cài thì nó chỉ chạy app, không cài lại.
 
 ## Nhiều máy
 
