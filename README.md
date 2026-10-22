@@ -61,6 +61,28 @@ Dùng **cùng một bot** cho mọi máy. Trên mỗi máy:
 
 Mọi tin nhắn có tiền tố `[TênMáy]` nên xem một chat là biết máy nào.
 
+## Từ khóa nhạy cảm
+
+Danh sách cố định nằm ở [src/capture.py](src/capture.py) — 108 từ khóa, chia 5 nhóm:
+
+| Nhóm | Ví dụ |
+|---|---|
+| Web người lớn quốc tế | `pornhub`, `xvideos`, `xhamster`, `onlyfans`, `brazzers` |
+| Hentai / JAV châu Á | `hentai`, `nhentai`, `missav`, `javhd`, `dlsite` |
+| Cam site | `chaturbate`, `stripchat`, `bongacams` |
+| Cờ bạc / cá độ | `789bet`, `w88`, `fun88`, `xoilac`, `nhà cái`, `lô đề`, `đá gà` |
+| Tiếng Việt / ma túy | `phim sex`, `phim heo`, `khiêu dâm`, `gái gọi`, `ma túy`, `cần sa` |
+
+Thêm từ khóa riêng cho một máy mà không cần build lại: `config.json` →
+`"sensitive_keywords": ["tên riêng", "..."]`.
+
+So khớp dùng **ranh giới từ** nên không bắt nhầm: `sex` không khớp trong "Es**sex**",
+`jav` không khớp trong "**Jav**aScript". Xổ số hợp pháp (`xổ số miền bắc`) cũng không khớp.
+
+Sửa danh sách cố định thì phải chạy lại `build.bat`.
+
+
+
 ## Cấu hình
 
 | Key | Ý nghĩa |

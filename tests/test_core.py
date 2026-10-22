@@ -103,6 +103,30 @@ def test_capture_is_sensitive():
     assert is_sensitive("nothing here", [""]) is False, "từ khóa rỗng bỏ qua"
 
 
+def test_capture_matches_vietnamese_terms():
+    from capture import is_sensitive
+    assert is_sensitive("Phim sex Việt Nam mới nhất") is True
+    assert is_sensitive("Cá độ bóng đá - Nhà cái uy tín") is True
+    assert is_sensitive("Xôi Lạc TV - Trực tiếp bóng đá") is True
+    assert is_sensitive("Gái gọi Hà Nội") is True
+    assert is_sensitive("Ma túy và tác hại") is True
+
+
+def test_capture_no_false_positives():
+    from capture import is_sensitive
+    assert is_sensitive("Essex County Council") is False, "sex không được khớp trong Essex"
+    assert is_sensitive("JavaScript Tutorial") is False, "jav không được khớp trong JavaScript"
+    assert is_sensitive("Xổ số miền Bắc hôm nay") is False, "xổ số hợp pháp không bị chặn"
+    assert is_sensitive("Học lập trình Python") is False
+    assert is_sensitive("Sunwin không phải tên người") is True, "tên thương hiệu vẫn khớp"
+
+
+def test_capture_keyword_count():
+    from capture import SENSITIVE_KEYWORDS
+    assert len(SENSITIVE_KEYWORDS) >= 80, len(SENSITIVE_KEYWORDS)
+    assert len(set(SENSITIVE_KEYWORDS)) == len(SENSITIVE_KEYWORDS), "không được trùng từ khóa"
+
+
 def test_command_parse_shot():
     from commands import parse
     assert parse("/shot", "PC1") == ("shot", 0, "")
