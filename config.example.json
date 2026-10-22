@@ -1,0 +1,19 @@
+{
+  "bot_token": "123456:ABC-DEF_your_bot_token",
+  "chat_id": "123456789",
+  "device_name": "PC-Van-Phong",
+  "poll_interval": 2.0,
+  "send_startup_message": true,
+  "track_activity": true,
+  "sensitive_keywords": [],
+  "sensitive_cooldown": 300,
+  "enable_commands": true,
+  "command_poll_timeout": 25,
+  "ignore_apps": [
+    "LockApp.exe",
+    "SearchHost.exe",
+    "ShellExperienceHost.exe",
+    "StartMenuExperienceHost.exe",
+    "TextInputHost.exe"
+  ]
+}

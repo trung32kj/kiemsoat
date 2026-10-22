@@ -1,0 +1,94 @@
+# TeleMonitor
+
+Agent chạy nền trên Windows, báo hoạt động về Telegram và cho phép xem màn hình từ xa
+bằng lệnh chat.
+
+## Tính năng
+
+- Tự khởi động cùng Windows, gửi tin "Máy tính đã bật" kèm tên máy và giờ.
+- Theo dõi ứng dụng/cửa sổ đang active mỗi 2 giây, gửi Telegram khi đổi.
+  Chrome/Edge đưa tên tab vào window title nên thấy được cả trang đang xem.
+- Phát hiện trang nhạy cảm theo từ khóa, chụp toàn màn hình, gửi ảnh
+  (tối đa 1 ảnh / 5 phút / máy).
+- Xem màn hình máy từ xa bằng lệnh Telegram: `/shot`, `/live N`, `/stop`, `/status`.
+
+## Lệnh điều khiển
+
+Nhắn trực tiếp cho bot (chỉ chat_id trong config mới có tác dụng):
+
+| Lệnh | Việc |
+|---|---|
+| `/shot` | Chụp màn hình ngay |
+| `/live 30` | Chụp 1 ảnh/2 giây trong 30 giây (tối đa 300) |
+| `/stop` | Dừng `/live` |
+| `/status` | Tên máy, uptime, `/live` còn bao lâu |
+
+Nhiều máy: thêm tên máy vào cuối — `/shot PC-Van-Phong`. Không thêm tên thì mọi máy
+cùng chụp. `/status` luôn trả lời từ mọi máy để bạn biết máy nào đang chạy.
+
+Nếu `getUpdates` báo lỗi **409 Conflict**, bot đang có webhook. Mở trình duyệt:
+`https://api.telegram.org/bot<TOKEN>/deleteWebhook` rồi khởi động lại app.
+
+## Cài đặt
+
+### 1. Tạo bot Telegram
+
+1. Nhắn `@BotFather` → `/newbot` → lấy **token**.
+2. Nhắn `@userinfobot` → lấy **chat_id** của bạn.
+3. Mở chat với bot vừa tạo và bấm **Start** (bắt buộc, nếu không bot không gửi được).
+
+### 2. Build
+
+```bat
+python -m pip install -r requirements.txt
+build.bat
+```
+
+### 3. Cài
+
+Sửa `config.example.json` → đổi tên thành `config.json` → điền `bot_token`, `chat_id`,
+`device_name`. Rồi chạy `install.bat` (không cần quyền Admin).
+
+Kiểm tra cấu hình: `%LOCALAPPDATA%\TeleMonitor\telemonitor.exe --test`
+
+## Nhiều máy
+
+Dùng **cùng một bot** cho mọi máy. Trên mỗi máy:
+
+1. Copy `telemonitor.exe` + `config.json` vào `%LOCALAPPDATA%\TeleMonitor\`.
+2. Đặt `device_name` khác nhau (`PC-Van-Phong`, `Laptop-Me`, ...).
+3. Chạy `telemonitor.exe --install` rồi `telemonitor.exe`.
+
+Mọi tin nhắn có tiền tố `[TênMáy]` nên xem một chat là biết máy nào.
+
+## Cấu hình
+
+| Key | Ý nghĩa |
+|---|---|
+| `bot_token` | Token bot Telegram |
+| `chat_id` | Chat nhận tin (chỉ chat này điều khiển được) |
+| `device_name` | Tên máy hiện trong tin nhắn (rỗng = hostname) |
+| `poll_interval` | Giây giữa 2 lần kiểm tra (tối thiểu 0.5) |
+| `send_startup_message` | Gửi tin khi khởi động |
+| `track_activity` | Theo dõi chuyển ứng dụng |
+| `sensitive_keywords` | Thêm từ khóa nhạy cảm ngoài danh sách có sẵn |
+| `sensitive_cooldown` | Giây tối thiểu giữa 2 ảnh (tối thiểu 30) |
+| `enable_commands` | Bật nhận lệnh `/shot`, `/live`, `/stop`, `/status` |
+| `command_poll_timeout` | Giây long-poll getUpdates (5–50) |
+| `ignore_apps` | Tên exe bỏ qua |
+
+## Log
+
+`%LOCALAPPDATA%\TeleMonitor\app.log` (1MB × 3 file).
+
+## Gỡ cài đặt
+
+Chạy `uninstall.bat`.
+
+## Giới hạn đã biết
+
+- Không đọc URL trình duyệt; nhận diện trang nhạy cảm dựa trên tiêu đề trang,
+  nên site lạ không có tên trong tiêu đề sẽ không bị phát hiện.
+- Chỉ chạy trên Windows.
+- Tool này giám sát máy. Chỉ dùng trên máy bạn sở hữu hoặc đã được người dùng
+  máy đó đồng ý rõ ràng — giám sát người khác không có sự đồng ý là vi phạm pháp luật.
