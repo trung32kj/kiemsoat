@@ -1,0 +1,79 @@
+name: Build and release
+
+# Builds telemonitor.exe on GitHub's Windows runner, so no machine of yours
+# needs Python. Runs on a manual trigger or when a v* tag is pushed.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version for the release tag, e.g. 1.1.0"
+        required: true
+        default: "1.1.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pyinstaller Pillow
+
+      - name: Run tests
+        run: python tests/test_core.py
+
+      - name: Build exe
+        run: >
+          python -m PyInstaller --onefile --noconsole --name telemonitor
+          --paths src --clean src/main.py
+
+      - name: Write SHA-256
+        shell: python
+        run: |
+          import hashlib, pathlib
+          h = hashlib.sha256(pathlib.Path("dist/telemonitor.exe").read_bytes()).hexdigest()
+          pathlib.Path("dist/telemonitor.exe.sha256").write_bytes((h + "\n").encode())
+          print("SHA256:", h)
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: telemonitor-${{ steps.tag.outputs.tag }}
+          path: |
+            dist/telemonitor.exe
+            dist/telemonitor.exe.sha256
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: TeleMonitor ${{ steps.tag.outputs.tag }}
+          body: |
+            Built automatically by GitHub Actions from ${{ github.sha }}.
+
+            Download `telemonitor.exe`, double-click it to install.
+          files: |
+            dist/telemonitor.exe
+            dist/telemonitor.exe.sha256
+          fail_on_unmatched_files: true
