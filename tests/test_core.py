@@ -245,6 +245,50 @@ def test_updater_check_returns_none_without_repo():
     assert check("   ", "1.0.0") is None
 
 
+def test_updater_fetch_sha_accepts_certutil_format():
+    import hashlib
+    import http.server
+    import threading
+    from updater import _fetch_sha
+
+    hex64 = hashlib.sha256(b"x").hexdigest()
+    bodies = {
+        "/plain": f"{hex64}\n",
+        "/sha256sum": f"{hex64}  telemonitor.exe\n",
+        "/certutil": (
+            "SHA256 hash of telemonitor.exe:\r\n"
+            f"{hex64}\r\n"
+            "CertUtil: -hashfile command completed successfully.\r\n"
+        ),
+        "/garbage": "not a hash at all\n",
+    }
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = bodies.get(self.path, "").encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_port}"
+    try:
+        for path in ("/plain", "/sha256sum", "/certutil"):
+            assert _fetch_sha(base + path, 10) == hex64, f"phải parse được {path}"
+        try:
+            _fetch_sha(base + "/garbage", 10)
+            raise AssertionError("hash rác phải bị từ chối")
+        except Exception as exc:
+            assert "hợp lệ" in str(exc)
+    finally:
+        srv.shutdown()
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

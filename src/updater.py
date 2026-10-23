@@ -73,14 +73,15 @@ def _fetch_sha(url: str, timeout: float) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "TeleMonitor"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read(4096).decode("utf-8", "replace")
+            raw = resp.read(65536).decode("utf-8", "replace")
     except (urllib.error.URLError, OSError) as exc:
         raise UpdateError(f"không tải được file SHA-256: {exc}") from exc
-    # Accept both "<hex>" and "<hex>  telemonitor.exe" (sha256sum output).
-    token = raw.strip().split()[0] if raw.strip() else ""
-    if not re.fullmatch(r"[0-9a-fA-F]{64}", token):
-        raise UpdateError("file SHA-256 không đúng định dạng")
-    return token.lower()
+    # Accept "<hex>", "<hex>  telemonitor.exe" (sha256sum) and Windows
+    # certutil output, which wraps the hash in header/footer lines.
+    for token in raw.split():
+        if re.fullmatch(r"[0-9a-fA-F]{64}", token):
+            return token.lower()
+    raise UpdateError("file SHA-256 không chứa hash hợp lệ")
 
 
 def download(url: str, sha_url: str, dest: Path, timeout: float = 60) -> str:
