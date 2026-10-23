@@ -1,0 +1,8 @@
+# cmd.exe requires CRLF line endings in .bat files.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Python and docs stay LF.
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf

@@ -23,7 +23,7 @@ import updater
 import wininfo
 
 APP_NAME = "TeleMonitor"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 MUTEX_NAME = "Local\\TeleMonitorMutex"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
