@@ -109,3 +109,27 @@ def get_updates(token: str, offset: int, timeout: int = 25) -> list[dict]:
     if not payload.get("ok"):
         raise TelegramError(str(payload.get("description", "unknown error")))
     return payload.get("result") or []
+
+
+def get_me(token: str, timeout: float = 15) -> str:
+    """Return the bot username, or raise TelegramError for a bad token."""
+    payload = _get_json(_api(token, "getMe"), timeout)
+    result = payload.get("result") or {}
+    return str(result.get("username") or result.get("first_name") or "bot")
+
+
+def _get_json(url: str, timeout: float) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": "TeleMonitor"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:300]
+        raise TelegramError(f"HTTP {exc.code}: {detail}") from exc
+    except (urllib.error.URLError, OSError) as exc:
+        raise TelegramError(str(exc)) from exc
+    except ValueError as exc:
+        raise TelegramError("invalid JSON from Telegram") from exc
+    if not payload.get("ok"):
+        raise TelegramError(str(payload.get("description", "unknown error")))
+    return payload

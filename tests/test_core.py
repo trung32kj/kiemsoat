@@ -289,6 +289,13 @@ def test_updater_fetch_sha_accepts_certutil_format():
         srv.shutdown()
 
 
+def test_setup_rejects_bad_token():
+    from setup_ui import _test_credentials
+    err = _test_credentials("123:not-a-real-token", "1")
+    assert err is not None, "token sai phải trả lỗi"
+    assert "Token" in err or "401" in err
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

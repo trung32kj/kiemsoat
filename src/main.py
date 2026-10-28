@@ -23,7 +23,7 @@ import updater
 import wininfo
 
 APP_NAME = "TeleMonitor"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 MUTEX_NAME = "Local\\TeleMonitorMutex"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
@@ -236,14 +236,13 @@ def poll_forever(cfg: dict, sender: Sender) -> None:
 def run() -> None:
     cfg = config.load()
     if not cfg["bot_token"] or not cfg["chat_id"]:
-        log.error("Thiếu bot_token/chat_id trong %s", config.config_path())
-        say(
-            f"Thiếu bot_token / chat_id.\n\nMở file này và điền:\n"
-            f"{config.config_path()}\n\nSau đó chạy lại telemonitor.exe.",
-            error=True,
-            box=True,
-        )
-        return
+        log.warning("thiếu bot_token/chat_id, mở form cấu hình")
+        import setup_ui
+
+        cfg = setup_ui.ask_config(cfg, config.config_path())
+        if not cfg:
+            log.error("người dùng huỷ cấu hình, thoát")
+            return
     log.info("start device=%s interval=%s", cfg["device_name"], cfg["poll_interval"])
     sender = Sender(cfg)
     sender.start()
