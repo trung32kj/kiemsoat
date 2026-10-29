@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import logging
 import logging.handlers
 import os
@@ -23,7 +24,7 @@ import updater
 import wininfo
 
 APP_NAME = "TeleMonitor"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 MUTEX_NAME = "Local\\TeleMonitorMutex"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME
@@ -66,6 +67,55 @@ def is_installed() -> bool:
     return Path(sys.executable).parent == LOG_DIR
 
 
+def stop_running_agent() -> None:
+    """Stop any already-installed agent so its exe can be overwritten.
+
+    Windows locks a running executable, so an upgrade (or a re-install) fails
+    with WinError 32 unless the old process is gone first. This never touches
+    the currently executing copy because the installer runs from Downloads.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    target = LOG_DIR / "telemonitor.exe"
+    if not target.exists():
+        return
+    # Exclude our own PID: the downloaded file may share the image name, and
+    # killing ourselves here would abort the install half-way.
+    try:
+        subprocess.run(
+            [
+                "taskkill", "/f", "/im", "telemonitor.exe",
+                "/fi", f"PID ne {os.getpid()}",
+            ],
+            capture_output=True,
+            timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("taskkill failed: %s", exc)
+    # Give Windows a moment to release the file lock.
+    for _ in range(20):
+        try:
+            with open(target, "ab"):
+                pass
+            return
+        except OSError:
+            time.sleep(0.25)
+
+
+def copy_with_retry(source: Path, target: Path) -> None:
+    """Copy, retrying while the destination is briefly locked by a dying process."""
+    last: OSError | None = None
+    for _ in range(20):
+        try:
+            shutil.copy2(source, target)
+            return
+        except OSError as exc:
+            last = exc
+            time.sleep(0.25)
+    raise last if last else OSError("copy failed")
+
+
 def self_install() -> int:
     """Copy this exe into %LOCALAPPDATA%\\TeleMonitor, enable autostart, launch it.
 
@@ -94,10 +144,17 @@ def self_install() -> int:
             log.warning("không copy được config.json: %s", exc)
 
     if source.resolve() != target.resolve():
+        # An older agent is probably running and holding the exe open.
+        stop_running_agent()
         try:
-            shutil.copy2(source, target)
+            copy_with_retry(source, target)
         except OSError as exc:
-            say(f"Không copy được file exe:\n{exc}", error=True, box=True)
+            say(
+                f"Không copy được file exe:\n{exc}\n\n"
+                f"Hãy tắt TeleMonitor trong Task Manager rồi thử lại.",
+                error=True,
+                box=True,
+            )
             return 1
 
     try:
@@ -112,12 +169,20 @@ def self_install() -> int:
         return 1
 
     subprocess.Popen([str(target)], close_fds=True)
+    has_creds = False
+    try:
+        has_creds = bool(json.loads(dst_cfg.read_text(encoding="utf-8")).get("bot_token"))
+    except (OSError, ValueError):
+        pass
     msg = (
         f"Đã cài TeleMonitor.\n\n"
         f"Thư mục: {target_dir}\n"
-        f"Tự khởi động: đã bật\n\n"
-        f"Nếu chưa điền bot_token / chat_id, mở config.json trong thư mục trên."
+        f"Tự khởi động: đã bật\n"
     )
+    if has_creds:
+        msg += "\nĐang chạy nền. Kiểm tra tin nhắn trên Telegram."
+    else:
+        msg += "\nMột cửa sổ cấu hình sẽ mở để bạn nhập Bot token và Chat ID."
     say(msg, box=True)
     return 0
 
